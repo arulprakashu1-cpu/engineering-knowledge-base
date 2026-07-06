@@ -1,0 +1,36 @@
+# Fly.io config for the Engineering Knowledge Base.
+# App names are GLOBALLY unique — change `app` below to something available.
+app = "engineering-kb"
+primary_region = "iad"   # change to a region near you: lhr, fra, ams, sin, syd, sjc…
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "4000"
+  DB_PATH = "/data/data.db"   # SQLite file lives on the volume mounted below
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = "stop"   # sleep when idle (cheaper); wakes on the next request
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/api/health"
+
+# Persistent disk for the SQLite database — create it before the first deploy:
+#   fly volumes create ekb_data --size 1 --region <same as primary_region>
+[mounts]
+  source = "ekb_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

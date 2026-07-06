@@ -1,0 +1,151 @@
+import type { Entry, KnowledgeType } from "./types";
+
+export const INTERFACES = [
+  "Ethernet", "PCIe", "USB", "CSI", "DSI", "DDR",
+  "A2B", "Bluetooth", "WiFi", "Display", "Power",
+];
+
+export const IC_LIBRARY = [
+  "88Q2221", "88Q6113", "SA8155", "MAX96752", "MAX96789", "MAX96791",
+  "MAX96754", "LPDDR4X", "TPS65132", "TPS62840", "LP8556", "TPS3702",
+];
+
+export const KNOWLEDGE_TYPES: KnowledgeType[] = [
+  "Requirement", "Checklist", "Lesson Learned", "Reference",
+];
+
+export const TAG_LIBRARY = [
+  "Bootstrap", "PHY", "EMI", "Power", "Review",
+  "Bringup", "Validation", "Layout", "Clock", "Impedance",
+];
+
+export const TYPE_COLOR: Record<string, string> = {
+  "Requirement": "var(--accent)",
+  "Checklist": "var(--indigo)",
+  "Lesson Learned": "var(--copper)",
+  "Reference": "var(--text-secondary)",
+};
+
+export const SAMPLE_ENTRIES: Entry[] = [
+  {
+    id: "e1", title: "Ethernet differential pair impedance requirement", interface: "Ethernet", ic: "88Q2221",
+    project: "Camera ECU Gen2", types: ["Requirement"], tags: ["Impedance", "Layout", "Review"],
+    content: "## Requirement\nDifferential pairs for 100BASE-T1 / 1000BASE-T1 shall maintain **100 Ω ±10%** differential impedance end to end.\n\n- Route as tightly coupled pairs, max 5 mil intra-pair skew\n- Avoid layer transitions within 200 mils of the PHY\n- Reference plane must be continuous under the full trace length\n\n```\nZdiff target: 100R ±10%\nMax skew: 5 mil\n```",
+    attachments: [{ name: "impedance_stackup.xlsx", type: "xlsx" }],
+    createdDate: "2026-06-02", modifiedDate: "2026-06-14", createdBy: "Ramu S.",
+  },
+  {
+    id: "e2", title: "PHY reference clock jitter requirement", interface: "Ethernet", ic: "88Q2221",
+    project: "Camera ECU Gen2", types: ["Requirement"], tags: ["PHY", "Clock"],
+    content: "## Requirement\nReference clock to the 88Q2221 shall have RMS phase jitter < 1 ps (12kHz–20MHz).\n\n- Use a dedicated LVCMOS/LVDS oscillator per PHY when multiple PHYs share a board\n- Keep clock trace length under 3 inches where possible",
+    attachments: [], createdDate: "2026-06-03", modifiedDate: "2026-06-03", createdBy: "Ramu S.",
+  },
+  {
+    id: "e3", title: "PHY schematic review checklist", interface: "Ethernet", ic: "88Q2221",
+    project: "", types: ["Checklist"], tags: ["PHY", "Review"],
+    content: "## Checklist\n- [ ] Bootstrap resistors match target strap configuration\n- [ ] Termination network verified against datasheet reference schematic\n- [ ] Decoupling caps placed within 100 mils of each power pin\n- [ ] MDI pair length matching confirmed\n- [ ] LED indicator polarity checked",
+    attachments: [{ name: "phy_checklist.xlsx", type: "xlsx" }], createdDate: "2026-06-05", modifiedDate: "2026-06-20", createdBy: "Ramu S.",
+  },
+  {
+    id: "e4", title: "Ethernet layout review checklist", interface: "Ethernet", ic: "88Q2221",
+    project: "", types: ["Checklist"], tags: ["Layout", "Review", "EMI"],
+    content: "## Checklist\n- [ ] MDI pairs routed on same layer, no layer switches\n- [ ] Common-mode choke placed before magnetics\n- [ ] Chassis ground moat clearance ≥ 100 mil\n- [ ] Magnetics center-tap decoupling per datasheet",
+    attachments: [], createdDate: "2026-06-06", modifiedDate: "2026-06-06", createdBy: "Ramu S.",
+  },
+  {
+    id: "e5", title: "Master/slave strap mismatch caused link-up failure", interface: "Ethernet", ic: "88Q2221",
+    project: "Display Board V3", types: ["Lesson Learned"], tags: ["Bootstrap", "Bringup"],
+    content: "## Issue\nTwo boards on the same segment were both strapped as **master**, so the link never trained.\n\n## Root cause\nBootstrap resistor BOM variant was not updated when the board was repurposed from a slave to a master position.\n\n## Fix\nAdded a clear silkscreen label for strap intent and a BOM note tying the resistor value to board position.",
+    attachments: [], createdDate: "2026-06-10", modifiedDate: "2026-06-10", createdBy: "Ramu S.",
+  },
+  {
+    id: "e6", title: "Bootstrap resistor value error on A-sample", interface: "Ethernet", ic: "88Q2221",
+    project: "Display Board V3", types: ["Lesson Learned"], tags: ["Bootstrap", "Review"],
+    content: "## Issue\nBootstrap pull value was swapped with an adjacent strap pin during a last-minute schematic edit.\n\n## Fix\nAdded a bootstrap-specific line item to the PHY review checklist so strap values are cross-checked against the datasheet table before release.",
+    attachments: [], createdDate: "2026-06-11", modifiedDate: "2026-06-11", createdBy: "Ramu S.",
+  },
+  {
+    id: "e7", title: "88Q2221 Datasheet", interface: "Ethernet", ic: "88Q2221",
+    project: "", types: ["Reference"], tags: ["PHY"],
+    content: "Marvell 88Q2221 100BASE-T1/1000BASE-T1 Automotive Ethernet PHY datasheet. Contains strap tables, electrical characteristics, and reference schematic.",
+    attachments: [{ name: "88Q2221_datasheet.pdf", type: "pdf" }], createdDate: "2026-05-20", modifiedDate: "2026-05-20", createdBy: "Ramu S.",
+  },
+  {
+    id: "e8", title: "Marvell Application Note AN-2221 (Layout Guidelines)", interface: "Ethernet", ic: "88Q2221",
+    project: "", types: ["Reference"], tags: ["Layout", "EMI"],
+    content: "Vendor application note covering recommended layout practices, magnetics selection, and EMC pre-compliance guidance for the 88Q2221.",
+    attachments: [{ name: "AN-2221_layout.pdf", type: "pdf" }], createdDate: "2026-05-21", modifiedDate: "2026-05-21", createdBy: "Ramu S.",
+  },
+  {
+    id: "e9", title: "GMSL2 link lock failure at cold start", interface: "Display", ic: "MAX96752",
+    project: "10.1in Display Board", types: ["Lesson Learned"], tags: ["Bringup", "Power"],
+    content: "## Issue\nDeserializer failed to achieve link lock below 0°C during chamber testing.\n\n## Root cause\nPower sequencing margin between VDDIO and the core rail was too tight at cold temperature, delaying PLL lock.\n\n## Fix\nAdded 5 ms sequencing margin via supervisor RC delay and re-verified across the full temperature range.",
+    attachments: [], createdDate: "2026-06-08", modifiedDate: "2026-06-08", createdBy: "Ramu S.",
+  },
+  {
+    id: "e10", title: "GMSL SerDes power sequencing checklist", interface: "Display", ic: "MAX96789",
+    project: "", types: ["Checklist"], tags: ["Power", "Review"],
+    content: "## Checklist\n- [ ] Serializer and deserializer core rails sequence within datasheet window\n- [ ] Supervisor thresholds verified against worst-case rail tolerance\n- [ ] PoC filter component values confirmed for target link rate\n- [ ] GPIO/interrupt pin pull direction checked",
+    attachments: [{ name: "gmsl_power_seq.xlsx", type: "xlsx" }], createdDate: "2026-06-12", modifiedDate: "2026-06-18", createdBy: "Ramu S.",
+  },
+  {
+    id: "e11", title: "LPDDR4X ZQ calibration requirement", interface: "DDR", ic: "LPDDR4X",
+    project: "SoC Compute Module", types: ["Requirement"], tags: ["Impedance"],
+    content: "## Requirement\nZQ calibration resistor shall be 240 Ω ±1% placed within 200 mils of the DRAM ZQ pin, referenced to the same ground as the DRAM.",
+    attachments: [], createdDate: "2026-05-28", modifiedDate: "2026-05-28", createdBy: "Ramu S.",
+  },
+  {
+    id: "e12", title: "DDR CA bus crosstalk on 10.1in panel variant", interface: "DDR", ic: "LPDDR4X",
+    project: "10.1in Display Board", types: ["Lesson Learned"], tags: ["Layout", "EMI"],
+    content: "## Issue\nCommand/address bus showed marginal eye closure on the 10.1in variant only.\n\n## Root cause\nDenser component placement on the smaller board reduced CA-to-DQ spacing below the recommended 3x trace width rule.\n\n## Fix\nAdded a minimum spacing rule to the variant layout template.",
+    attachments: [], createdDate: "2026-06-15", modifiedDate: "2026-06-15", createdBy: "Ramu S.",
+  },
+  {
+    id: "e13", title: "TPS65132 output overshoot on cold boot", interface: "Power", ic: "TPS65132",
+    project: "7in Display Board", types: ["Lesson Learned"], tags: ["Power", "Bringup"],
+    content: "## Issue\nPositive rail overshot target by 8% during cold boot, tripping downstream OVP.\n\n## Fix\nIncreased soft-start capacitor and re-validated overshoot across the full input voltage range.",
+    attachments: [], createdDate: "2026-06-17", modifiedDate: "2026-06-17", createdBy: "Ramu S.",
+  },
+  {
+    id: "e14", title: "Power sequencing supervisor checklist", interface: "Power", ic: "TPS3702",
+    project: "", types: ["Checklist"], tags: ["Power", "Review"],
+    content: "## Checklist\n- [ ] Threshold resistors selected for worst-case rail tolerance\n- [ ] Delay capacitor verified against sequencing spec\n- [ ] Reset output polarity matches downstream MCU expectation",
+    attachments: [], createdDate: "2026-06-19", modifiedDate: "2026-06-19", createdBy: "Ramu S.",
+  },
+  {
+    id: "e15", title: "CSI-2 lane skew requirement", interface: "CSI", ic: "SA8155",
+    project: "Camera ECU Gen2", types: ["Requirement"], tags: ["Impedance", "Layout"],
+    content: "## Requirement\nCSI-2 data lane to clock lane skew shall not exceed 30 ps at the connector, including cable allowance.",
+    attachments: [], createdDate: "2026-06-01", modifiedDate: "2026-06-01", createdBy: "Ramu S.",
+  },
+  {
+    id: "e16", title: "USB Type-C PD negotiation reference", interface: "USB", ic: "SA8155",
+    project: "", types: ["Reference"], tags: ["Validation"],
+    content: "Summary reference for USB-PD contract negotiation sequence used during bring-up debugging, including common failure signatures on a protocol analyzer trace.",
+    attachments: [{ name: "usb_pd_reference.pdf", type: "pdf" }], createdDate: "2026-05-25", modifiedDate: "2026-05-25", createdBy: "Ramu S.",
+  },
+  {
+    id: "e17", title: "A2B bus termination mismatch", interface: "A2B", ic: "",
+    project: "Audio Module", types: ["Lesson Learned"], tags: ["Bringup", "Validation"],
+    content: "## Issue\nIntermittent node dropouts traced to a termination mismatch at the last node on the bus.\n\n## Fix\nStandardized end-of-bus termination value across all node board variants.",
+    attachments: [], createdDate: "2026-06-21", modifiedDate: "2026-06-21", createdBy: "Ramu S.",
+  },
+  {
+    id: "e18", title: "BT antenna placement checklist", interface: "Bluetooth", ic: "",
+    project: "", types: ["Checklist"], tags: ["Review", "EMI"],
+    content: "## Checklist\n- [ ] Antenna keep-out zone free of copper and enclosure metal\n- [ ] Feed line length matches antenna vendor reference design\n- [ ] Ground clearance under antenna verified",
+    attachments: [], createdDate: "2026-06-22", modifiedDate: "2026-06-22", createdBy: "Ramu S.",
+  },
+  {
+    id: "e19", title: "WiFi antenna isolation requirement", interface: "WiFi", ic: "",
+    project: "", types: ["Requirement"], tags: ["EMI"],
+    content: "## Requirement\nIsolation between WiFi and Bluetooth antennas shall be ≥ 15 dB across the 2.4 GHz band to avoid desense.",
+    attachments: [], createdDate: "2026-06-23", modifiedDate: "2026-06-23", createdBy: "Ramu S.",
+  },
+  {
+    id: "e20", title: "PCIe Gen3 reference clock jitter issue", interface: "PCIe", ic: "",
+    project: "SoC Compute Module", types: ["Lesson Learned"], tags: ["Clock", "Validation"],
+    content: "## Issue\nLink training failures observed intermittently under thermal cycling.\n\n## Root cause\nReference clock buffer was operating close to its jitter spec limit at elevated temperature.\n\n## Fix\nSwitched to a lower-jitter buffer with margin and re-ran compliance testing.",
+    attachments: [], createdDate: "2026-06-25", modifiedDate: "2026-06-25", createdBy: "Ramu S.",
+  },
+];

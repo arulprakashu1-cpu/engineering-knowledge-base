@@ -1,0 +1,23 @@
+# Render Blueprint — one-click-ish deploy.
+# In Render: New → Blueprint → connect this repo. Render reads this file.
+# NOTE: the persistent disk (for the SQLite DB) requires a paid instance type.
+#       On the free tier, drop the `disk:` block — data resets on each deploy/restart.
+services:
+  - type: web
+    name: engineering-knowledge-base
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: node server/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true          # Render generates a strong secret for you
+      - key: DB_PATH
+        value: /var/data/data.db     # lives on the mounted disk below
+    disk:
+      name: ekb-data
+      mountPath: /var/data
+      sizeGB: 1

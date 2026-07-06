@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-ssr
+.git
+*.log
+server/data.db
+server/data.db-shm
+server/data.db-wal
+.vscode
+.idea
+.DS_Store
