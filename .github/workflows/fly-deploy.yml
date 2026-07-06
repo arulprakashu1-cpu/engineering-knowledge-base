@@ -9,6 +9,7 @@ name: Fly Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch: {}
 
 jobs:
   deploy:
@@ -18,6 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only
+      - name: Deploy to Fly (skips until FLY_API_TOKEN is set)
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "FLY_API_TOKEN is not set — skipping deploy."
+            echo "Add it (fly tokens create deploy -> gh secret set FLY_API_TOKEN) to enable auto-deploy."
+            exit 0
+          fi
+          flyctl deploy --remote-only
