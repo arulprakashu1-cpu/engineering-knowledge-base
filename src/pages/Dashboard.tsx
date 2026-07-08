@@ -1,9 +1,7 @@
 import { Clock, Network, Eye, ChevronRight, Boxes, LayoutDashboard, FilePlus2 } from "lucide-react";
-import type { Entry, Theme } from "../types";
+import type { Entry } from "../types";
 import { TYPE_COLOR } from "../data";
 import { fmtDate, TraceDivider, EmptyState } from "../lib";
-import { HeroScene } from "../three/HeroScene";
-import { ICChip3D } from "../three/ICChip3D";
 
 export interface InterfaceStat {
   name: string;
@@ -14,14 +12,13 @@ export interface InterfaceStat {
 }
 
 export function Dashboard({
-  entries, recentlyViewed, goToEntry, goToInterface, goToAdd, theme,
+  entries, recentlyViewed, goToEntry, goToInterface, goToAdd,
 }: {
   entries: Entry[];
   recentlyViewed: string[];
   goToEntry: (id: string) => void;
   goToInterface: (name: string) => void;
   goToAdd: () => void;
-  theme: Theme;
 }) {
   const totalEntries = entries.length;
   const totalInterfaces = new Set(entries.map((e) => e.interface)).size;
@@ -46,22 +43,9 @@ export function Dashboard({
 
   return (
     <div className="page">
-      <div className="hero-3d">
-        <HeroScene theme={theme} />
-        <div className="hero-3d-overlay">
-          <h1>Engineering Knowledge Base</h1>
-          <p>Everything you've captured about high-speed interfaces, ICs, and board bring-up — searchable, visual, and in one place.</p>
-          <div className="hero-3d-stats">
-            <div><b>{totalEntries}</b><span>Entries</span></div>
-            <div><b>{totalInterfaces}</b><span>Interfaces</span></div>
-            <div><b>{totalICs}</b><span>ICs</span></div>
-          </div>
-        </div>
-      </div>
-
       <div className="page-head">
         <div className="page-title"><span className="page-title-icon"><LayoutDashboard size={19} /></span><h1>Dashboard</h1></div>
-        <p className="page-sub">Your personal knowledge base — searchable and visual, in one place.</p>
+        <p className="page-sub">Your personal knowledge base — searchable, in one place.</p>
       </div>
       <TraceDivider />
 
@@ -138,12 +122,6 @@ export function Dashboard({
       <div className="interface-grid">
         {perInterface.map((it) => (
           <button className="ic-card" key={it.name} onClick={() => goToInterface(it.name)}>
-            <div className="ic-card-pins" aria-hidden="true">
-              {Array.from({ length: 5 }).map((_, i) => <span key={i} />)}
-            </div>
-            <div className="ic-card-chip">
-              <ICChip3D label={it.name} count={it.total} theme={theme} />
-            </div>
             <div className="ic-card-body">
               <div className="ic-card-title">
                 <Network size={14} />

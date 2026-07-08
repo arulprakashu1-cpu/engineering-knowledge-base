@@ -25,8 +25,6 @@ export interface Entry {
   createdBy: string;
 }
 
-export type Theme = "light" | "dark";
-
 export type Page =
   | "dashboard"
   | "add"
@@ -34,5 +32,4 @@ export type Page =
   | "review"
   | "settings"
   | "detail"
-  | "explore"
   | "profile";

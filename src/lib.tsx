@@ -201,14 +201,7 @@ export function fileToImageDataUrl(file: File, maxDim = 1400): Promise<string> {
 /* ------------------------------------------------------------------ */
 
 export function TraceDivider() {
-  return (
-    <svg width="100%" height="10" viewBox="0 0 400 10" preserveAspectRatio="none" className="trace-divider">
-      <line x1="0" y1="5" x2="400" y2="5" stroke="var(--border)" strokeWidth="1" />
-      {[20, 100, 180, 260, 340].map((x) => (
-        <rect key={x} x={x - 2.5} y="1.5" width="5" height="7" fill="var(--bg)" stroke="var(--border)" strokeWidth="1" />
-      ))}
-    </svg>
-  );
+  return <hr className="trace-divider" />;
 }
 
 export function TypeBadge({ type }: { type: string }) {

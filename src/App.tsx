@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { CircuitBoard, Loader2, AlertTriangle } from "lucide-react";
-import type { Entry, Theme, Page } from "./types";
+import { FileText, Loader2, AlertTriangle } from "lucide-react";
+import type { Entry, Page } from "./types";
 import { GlobalStyle } from "./GlobalStyle";
-import { ThreeStyle } from "./three/ThreeStyle";
 import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
 import { Dashboard } from "./pages/Dashboard";
-import { Explore } from "./pages/Explore";
 import { AddKnowledge } from "./pages/AddKnowledge";
 import { SearchKnowledge } from "./pages/SearchKnowledge";
 import { KnowledgeDetail } from "./pages/KnowledgeDetail";
@@ -20,7 +18,6 @@ import { apiGetEntries, apiCreateEntry, apiUpdateEntry, apiDeleteEntry } from ".
 
 export default function App() {
   const { user, loading: authLoading, logout } = useAuth();
-  const [theme, setTheme] = useState<Theme>("dark");
   const [page, setPage] = useState<Page>("dashboard");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(false);
@@ -34,14 +31,22 @@ export default function App() {
   const [topQuery, setTopQuery] = useState("");
   const [searchSeed, setSearchSeed] = useState<{ q: string; iface: string }>({ q: "", iface: "" });
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  useEffect(() => {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap";
-    document.head.appendChild(link);
-    return () => { document.head.removeChild(link); };
-  }, []);
+  // Desktop-only collapse of the side menu (mobile uses the sidebarOpen drawer).
+  const [navCollapsed, setNavCollapsed] = useState(() => {
+    try { return localStorage.getItem("ekb.navCollapsed") === "1"; } catch { return false; }
+  });
+  // The topbar button toggles the drawer on mobile and the collapse on desktop.
+  const toggleNav = () => {
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 921px)").matches) {
+      setNavCollapsed((v) => {
+        const next = !v;
+        try { localStorage.setItem("ekb.navCollapsed", next ? "1" : "0"); } catch { /* ignore */ }
+        return next;
+      });
+    } else {
+      setSidebarOpen((v) => !v);
+    }
+  };
 
   const loadEntries = useCallback(async () => {
     setEntriesLoading(true);
@@ -126,7 +131,7 @@ export default function App() {
   const existingInterfaces = Array.from(new Set(entries.map((e) => e.interface).filter(Boolean)));
 
   const breadcrumbLabel: Record<Page, string> = {
-    dashboard: "Dashboard", explore: "3D Explorer",
+    dashboard: "Dashboard",
     add: editingEntry ? "Edit Knowledge" : "Add Knowledge",
     search: "Search Knowledge", review: "Review Package", settings: "Settings",
     profile: "My Profile",
@@ -134,22 +139,21 @@ export default function App() {
   };
 
   return (
-    <div data-theme={theme} className="ekb-root">
+    <div className={"ekb-root" + (navCollapsed ? " nav-collapsed" : "")}>
       <GlobalStyle />
-      <ThreeStyle />
 
       {authLoading ? (
-        <div className="app-splash"><CircuitBoard size={30} /><Loader2 size={18} className="app-splash-spin" /><span>Loading…</span></div>
+        <div className="app-splash"><FileText size={26} /><Loader2 size={18} className="app-splash-spin" /><span>Loading…</span></div>
       ) : !user ? (
-        <Login theme={theme} setTheme={setTheme} />
+        <Login />
       ) : (
         <>
           <Sidebar page={page} setPage={navigate} open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} onLogout={logout} />
           <div className="main-col">
             <Topbar
-              theme={theme} setTheme={setTheme} query={topQuery} setQuery={setTopQuery} onSearchSubmit={handleTopSearch}
-              breadcrumb={<><CircuitBoard size={13} /><span>{breadcrumbLabel[page]}</span></>}
-              onMenuClick={() => setSidebarOpen(true)}
+              query={topQuery} setQuery={setTopQuery} onSearchSubmit={handleTopSearch}
+              breadcrumb={<><FileText size={13} /><span>{breadcrumbLabel[page]}</span></>}
+              onMenuClick={toggleNav}
             />
             <main className="content">
               {entriesLoading ? (
@@ -163,8 +167,7 @@ export default function App() {
                 </div>
               ) : (
                 <>
-                  {page === "dashboard" && <Dashboard entries={entries} recentlyViewed={recentlyViewed} goToEntry={goToEntry} goToInterface={goToInterface} goToAdd={() => navigate("add")} theme={theme} />}
-                  {page === "explore" && <Explore entries={entries} goToInterface={goToInterface} theme={theme} />}
+                  {page === "dashboard" && <Dashboard entries={entries} recentlyViewed={recentlyViewed} goToEntry={goToEntry} goToInterface={goToInterface} goToAdd={() => navigate("add")} />}
                   {page === "add" && (
                     <AddKnowledge
                       key={editingId ?? "new"}
@@ -179,7 +182,7 @@ export default function App() {
                   {page === "detail" && <KnowledgeDetail entry={selectedEntry} entries={entries} goBack={() => setPage("search")} goToEntry={goToEntry} currentUserId={user.id} onEdit={startEdit} onDelete={setDeleteTarget} />}
                   {page === "review" && <ReviewPackage entries={entries} />}
                   {page === "profile" && <Profile user={user} entries={entries} goToEntry={goToEntry} onEdit={startEdit} onDelete={setDeleteTarget} goToAdd={() => navigate("add")} />}
-                  {page === "settings" && <Settings theme={theme} setTheme={setTheme} user={user} />}
+                  {page === "settings" && <Settings user={user} />}
                 </>
               )}
             </main>

@@ -30,7 +30,9 @@ jobs:
       - name: Build static demo
         env:
           VITE_STATIC: "true"
-          VITE_BASE: "/engineering-knowledge-base/"
+          # Serve from the repo's Pages subpath (e.g. /ses/), derived from the
+          # repo name so this works no matter which repo it's pushed to.
+          VITE_BASE: "/${{ github.event.repository.name }}/"
         run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

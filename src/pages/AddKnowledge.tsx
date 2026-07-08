@@ -27,6 +27,38 @@ function expandImages(md: string, map: Record<string, string>): string {
   return md.replace(/\(img:([a-zA-Z0-9]+)\)/g, (all, id) => (map[id] ? `(${map[id]})` : all));
 }
 
+/* --------------------------------------------------------------------------
+ * Pasting a table: convert a copied Excel / Google Sheets / web table into the
+ * editor's markdown table syntax, preserving rows and columns.
+ * ------------------------------------------------------------------------ */
+function toMarkdownTable(rows: string[][]): string {
+  const cols = Math.max(1, ...rows.map((r) => r.length));
+  const esc = (s: string) => (s ?? "").replace(/\r?\n/g, " ").replace(/\|/g, "\\|").trim();
+  const pad = (r: string[]) => Array.from({ length: cols }, (_, i) => esc(r[i] ?? ""));
+  const line = (a: string[]) => `| ${a.join(" | ")} |`;
+  const sep = `| ${Array.from({ length: cols }, () => "---").join(" | ")} |`;
+  return [line(pad(rows[0])), sep, ...rows.slice(1).map((r) => line(pad(r)))].join("\n");
+}
+
+/** Returns a markdown table if the clipboard holds tabular data, else null. */
+function clipboardTable(cd: DataTransfer): string | null {
+  const html = cd.getData("text/html");
+  if (html && /<table[\s>]/i.test(html)) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const rows = Array.from(doc.querySelectorAll("tr"))
+      .map((tr) => Array.from(tr.querySelectorAll("th,td")).map((c) => (c.textContent || "").replace(/\s+/g, " ").trim()))
+      .filter((r) => r.length > 0);
+    if (rows.length) return toMarkdownTable(rows);
+  }
+  // Excel / Sheets also put tab-separated plain text on the clipboard.
+  const text = cd.getData("text/plain");
+  if (text && text.includes("\t")) {
+    const rows = text.replace(/\r/g, "").replace(/\n+$/, "").split("\n").map((r) => r.split("\t"));
+    if (rows.length && rows.some((r) => r.length > 1)) return toMarkdownTable(rows);
+  }
+  return null;
+}
+
 export function AddKnowledge({
   onSave, existingICs, existingInterfaces = [], initial, onCancel,
 }: {
@@ -43,7 +75,10 @@ export function AddKnowledge({
   const [iface, setIface] = useState(initial?.interface ?? "");
   const [ic, setIc] = useState(initial?.ic ?? "");
   const [project, setProject] = useState(initial?.project ?? "");
-  const [types, setTypes] = useState<KnowledgeType[]>(initial?.types ?? []);
+  // One knowledge type per entry. Switching type while an entry is in progress
+  // prompts to save first, then starts a fresh form for the newly picked type.
+  const [type, setType] = useState<KnowledgeType | null>(initial?.types?.[0] ?? null);
+  const [pendingType, setPendingType] = useState<KnowledgeType | null>(null);
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [tagInput, setTagInput] = useState("");
   // Seed the editor once, collapsing any inline data-URI images into tokens.
@@ -59,6 +94,49 @@ export function AddKnowledge({
   const taRef = useRef<HTMLTextAreaElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
 
+  // Undo / redo history for the content editor (native undo breaks on a
+  // controlled textarea, so we manage our own stacks).
+  const undoStack = useRef<string[]>([]);
+  const redoStack = useRef<string[]>([]);
+  const lastSnap = useRef(0);
+
+  const snapshot = (val: string) => {
+    const s = undoStack.current;
+    if (s[s.length - 1] !== val) s.push(val);
+    if (s.length > 300) s.shift();
+    redoStack.current = [];
+  };
+  // Typing: coalesce keystrokes into one undo step per burst / word boundary.
+  const onContentChange = (next: string) => {
+    const now = Date.now();
+    const prev = content;
+    const boundary = next.length > prev.length && /\s$/.test(next);
+    if (now - lastSnap.current > 600 || boundary || Math.abs(next.length - prev.length) > 1) {
+      snapshot(prev);
+      lastSnap.current = now;
+    }
+    setContent(next);
+  };
+  const undo = () => {
+    if (!undoStack.current.length) return;
+    redoStack.current.push(content);
+    lastSnap.current = 0;
+    setContent(undoStack.current.pop()!);
+    requestAnimationFrame(() => taRef.current?.focus());
+  };
+  const redo = () => {
+    if (!redoStack.current.length) return;
+    undoStack.current.push(content);
+    lastSnap.current = 0;
+    setContent(redoStack.current.pop()!);
+    requestAnimationFrame(() => taRef.current?.focus());
+  };
+  const onEditorKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && (e.key === "z" || e.key === "Z")) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
+    else if (mod && (e.key === "y" || e.key === "Y")) { e.preventDefault(); redo(); }
+  };
+
   const icOptions = useMemo(
     () => Array.from(new Set([...IC_LIBRARY, ...existingICs])).sort(),
     [existingICs]
@@ -68,8 +146,24 @@ export function AddKnowledge({
     [existingInterfaces]
   );
 
-  const toggleType = (t: KnowledgeType) =>
-    setTypes((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]);
+  // True when the form holds work that would be lost by switching type.
+  const hasInput = () =>
+    !!(title.trim() || iface.trim() || ic.trim() || project.trim() ||
+       content.trim() || tags.length || attachments.length);
+
+  const resetForm = () => {
+    setTitle(""); setIface(""); setIc(""); setProject(""); setType(null);
+    setTags([]); setTagInput("");
+    setContent(""); setImages({}); imgCounter.current = 0; setAttachments([]);
+    undoStack.current = []; redoStack.current = []; lastSnap.current = 0;
+  };
+
+  // Picking a type: switching away from an in-progress entry asks to save first.
+  const requestType = (t: KnowledgeType) => {
+    if (t === type) return;
+    if (type !== null && hasInput()) { setPendingType(t); return; }
+    setType(t);
+  };
 
   const addTag = (t: string) => {
     const v = t.trim();
@@ -78,6 +172,8 @@ export function AddKnowledge({
   };
 
   const insertSnippet = (snippet: string) => {
+    snapshot(content);
+    lastSnap.current = 0;
     const el = taRef.current;
     if (!el) { setContent((c) => c + snippet); return; }
     const start = el.selectionStart ?? content.length;
@@ -105,15 +201,18 @@ export function AddKnowledge({
   };
 
   const removeImage = (id: string) => {
-    // Drop the image token (and any blank line it sat on) from the text.
+    // Drop the image token from the text (keep its data so undo can restore it).
+    snapshot(content);
+    lastSnap.current = 0;
     setContent((c) => c.replace(new RegExp(`\\n?!\\[[^\\]]*\\]\\(img:${id}\\)`, "g"), ""));
-    setImages((prev) => { const next = { ...prev }; delete next[id]; return next; });
   };
 
-  // Paste or drag-drop an image straight into the editor.
+  // Paste an Excel/Sheets table, or an image, straight into the editor.
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = Array.from(e.clipboardData?.items || []);
-    const img = items.find((it) => it.type.startsWith("image/"));
+    if (!e.clipboardData) return;
+    const table = clipboardTable(e.clipboardData);
+    if (table) { e.preventDefault(); insertSnippet(`\n${table}\n`); return; }
+    const img = Array.from(e.clipboardData.items).find((it) => it.type.startsWith("image/"));
     if (img) {
       const file = img.getAsFile();
       if (file) { e.preventDefault(); insertImage(file); }
@@ -132,8 +231,10 @@ export function AddKnowledge({
     setAttachments((prev) => [...prev, ...items]);
   };
 
-  const handleSave = async () => {
-    if (!title.trim() || !iface) { setError("Title and Interface are required."); return; }
+  // Persist the current entry. Returns whether it saved so callers (like the
+  // switch-type prompt) can chain follow-up actions on success.
+  const doSave = async (): Promise<boolean> => {
+    if (!title.trim() || !iface) { setError("Title and Interface are required."); return false; }
     setError("");
     setSaving(true);
     const today = new Date().toISOString().slice(0, 10);
@@ -141,22 +242,39 @@ export function AddKnowledge({
       id: initial?.id ?? uid(),
       ownerId: initial?.ownerId,
       title: title.trim(), interface: iface, ic: ic.trim(), project: project.trim(),
-      types: types.length ? types : ["Reference"], tags, content: expandImages(content, images), attachments,
+      types: type ? [type] : ["Reference"], tags, content: expandImages(content, images), attachments,
       createdDate: initial?.createdDate ?? today, modifiedDate: today,
       createdBy: initial?.createdBy ?? "",
     };
     try {
       await onSave(entry);
-      if (isEdit) { onCancel?.(); return; }
+      if (isEdit) { onCancel?.(); return true; }
+      resetForm();
       setSaved(true);
-      setTitle(""); setIface(""); setIc(""); setProject(""); setTypes([]); setTags([]);
-      setContent(""); setImages({}); imgCounter.current = 0; setAttachments([]);
-      setTimeout(() => setSaved(false), 3000);
+      setTimeout(() => setSaved(false), 3200);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save entry. Please try again.");
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = () => { void doSave(); };
+
+  // Switch-type prompt actions.
+  const savePending = async () => {
+    const next = pendingType;
+    const ok = await doSave();
+    if (ok) { setPendingType(null); if (next) setType(next); }
+    // On failure the popup stays open; the reason is shown inside it.
+  };
+  const discardPending = () => {
+    const next = pendingType;
+    resetForm();
+    setPendingType(null);
+    if (next) setType(next);
   };
 
   return (
@@ -174,7 +292,6 @@ export function AddKnowledge({
       </div>
       <TraceDivider />
 
-      {saved && <div className="banner success"><Check size={15} /> Entry saved to the knowledge base.</div>}
       {error && <div className="banner error">{error}</div>}
 
       <div className="form-grid">
@@ -210,9 +327,9 @@ export function AddKnowledge({
             {KNOWLEDGE_TYPES.map((t) => (
               <button
                 type="button" key={t}
-                className={"chip-toggle" + (types.includes(t) ? " active" : "")}
+                className={"chip-toggle" + (type === t ? " active" : "")}
                 style={{ ["--dot" as string]: TYPE_COLOR[t] } as React.CSSProperties}
-                onClick={() => toggleType(t)}
+                onClick={() => requestType(t)}
               >
                 <span className="badge-dot" />{t}
               </button>
@@ -265,11 +382,12 @@ export function AddKnowledge({
               <textarea
                 ref={taRef}
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(e) => onContentChange(e.target.value)}
+                onKeyDown={onEditorKeyDown}
                 onPaste={handlePaste}
                 onDrop={handleEditorDrop}
                 onDragOver={(e) => { if (e.dataTransfer?.types.includes("Files")) e.preventDefault(); }}
-                placeholder="Write requirement details, checklist items, root cause, fix… Use the toolbar for headings, lists, tables, and code. Paste or drop an image straight in — it shows as a thumbnail below, not raw data."
+                placeholder="Write requirement details, checklist items, root cause, fix… Use the toolbar for headings, lists, tables, and code. Paste a table from Excel and it becomes a formatted table. Ctrl+Z / Ctrl+Y to undo/redo."
               />
               <div className="editor-preview">
                 <div className="editor-preview-label">Preview</div>
@@ -321,6 +439,48 @@ export function AddKnowledge({
           {saving ? "Saving…" : isEdit ? "Save changes" : "Save entry"}
         </button>
       </div>
+
+      {/* Switching type with an entry in progress — save, discard, or stay. */}
+      {pendingType && (
+        <div
+          className="modal-overlay no-print"
+          onMouseDown={(e) => { if (e.target === e.currentTarget && !saving) setPendingType(null); }}
+        >
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="switch-title">
+            <div className="modal-icon"><FilePlus2 size={20} /></div>
+            <h2 id="switch-title" className="modal-title">Save this entry first?</h2>
+            <div className="modal-message">
+              You have an unsaved <strong>{type}</strong> entry. Save it, then start a
+              fresh <strong>{pendingType}</strong> entry — or discard your changes.
+            </div>
+            {error && <div className="modal-error">{error}</div>}
+            <div className="modal-actions spread">
+              <button type="button" className="btn-ghost" onClick={() => setPendingType(null)} disabled={saving}>
+                Cancel
+              </button>
+              <div className="grow">
+                <button type="button" className="btn-danger-ghost" onClick={discardPending} disabled={saving}>
+                  Discard
+                </button>
+                <button type="button" className="btn-primary" onClick={() => void savePending()} disabled={saving}>
+                  {saving ? <Loader2 size={15} className="spin" /> : <Check size={15} />}
+                  {saving ? "Saving…" : "Save & switch"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation toast pinned to the bottom of the screen after a save. */}
+      {saved && (
+        <div className="toast-wrap no-print" role="status" aria-live="polite">
+          <div className="toast">
+            <span className="toast-check"><Check size={16} /></span>
+            Entry saved to the knowledge base.
+          </div>
+        </div>
+      )}
     </div>
   );
 }

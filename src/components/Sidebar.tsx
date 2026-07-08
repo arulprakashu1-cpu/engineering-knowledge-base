@@ -1,6 +1,6 @@
 import {
   LayoutGrid, FilePlus2, Search, ClipboardList, Settings as SettingsIcon,
-  CircuitBoard, Boxes, X, LogOut, UserRound,
+  X, LogOut, UserRound,
 } from "lucide-react";
 import type { Page } from "../types";
 import type { AuthUser } from "../api";
@@ -14,7 +14,6 @@ function initials(name: string): string {
 
 const NAV_ITEMS: { key: Page; label: string; icon: typeof LayoutGrid }[] = [
   { key: "dashboard", label: "Dashboard", icon: LayoutGrid },
-  { key: "explore", label: "3D Explorer", icon: Boxes },
   { key: "add", label: "Add Knowledge", icon: FilePlus2 },
   { key: "search", label: "Search Knowledge", icon: Search },
   { key: "review", label: "Review Package", icon: ClipboardList },
@@ -37,9 +36,8 @@ export function Sidebar({
       {open && <div className="sidebar-overlay no-print" onClick={onClose} />}
       <aside className={"sidebar no-print" + (open ? " open" : "")}>
         <div className="brand">
-          <div className="brand-mark"><CircuitBoard size={18} /></div>
           <div className="brand-text">
-            <div className="brand-title">Engineering<br />Knowledge Base</div>
+            <div className="brand-title">Embedded<br />Solutions</div>
           </div>
           <button className="sidebar-close" onClick={onClose} aria-label="Close menu"><X size={16} /></button>
         </div>
