@@ -32,14 +32,42 @@ function write<T>(key: string, val: T) {
   localStorage.setItem(key, JSON.stringify(val));
 }
 
-function ensureSeed() {
-  if (read<StoredUser[]>(USERS_KEY, []).length > 0) return;
-  const demo: StoredUser = {
+// Accounts available in the demo. Auth here is a showcase, not secure — these
+// credentials intentionally live in the (public) source, same as `demo`.
+const SEED_USERS: StoredUser[] = [
+  {
     id: 1, username: "demo", email: "demo@ekb.local", name: "Ramu S.",
     role: "Hardware Design Engineer", createdAt: new Date().toISOString(), password: "demo1234",
-  };
-  write(USERS_KEY, [demo]);
-  write(ENTRIES_KEY, SAMPLE_ENTRIES.map((e) => ({ ...e, ownerId: 1 })));
+  },
+  {
+    id: 2, username: "satheesh", email: "satheesh@ekb.local", name: "Satheesh",
+    role: "Hardware Design Engineer", createdAt: new Date().toISOString(), password: "Satheesh@007",
+  },
+];
+
+/** A per-owner copy of the sample entries (ids suffixed to stay unique). */
+function entriesFor(ownerId: number): Entry[] {
+  return SAMPLE_ENTRIES.map((e) => ({ ...e, id: `${e.id}-u${ownerId}`, ownerId }));
+}
+
+function ensureSeed() {
+  let users = read<StoredUser[]>(USERS_KEY, []);
+  if (users.length === 0) {
+    write(USERS_KEY, SEED_USERS);
+    write(ENTRIES_KEY, SEED_USERS.flatMap((u) => entriesFor(u.id)));
+    return;
+  }
+  // Self-heal browsers seeded before a new account existed: add any missing
+  // seed user (e.g. satheesh) and its starter entries without touching the rest.
+  const entries = read<Entry[]>(ENTRIES_KEY, []);
+  let changed = false;
+  for (const seed of SEED_USERS) {
+    if (users.some((u) => u.username === seed.username)) continue;
+    users = [...users, seed];
+    if (!entries.some((e) => e.ownerId === seed.id)) entries.push(...entriesFor(seed.id));
+    changed = true;
+  }
+  if (changed) { write(USERS_KEY, users); write(ENTRIES_KEY, entries); }
 }
 
 /** Called once at startup: seed data and auto-sign-in as demo on the first visit. */
